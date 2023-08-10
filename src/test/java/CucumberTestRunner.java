@@ -9,8 +9,7 @@ import org.junit.runner.RunWith;
                 "json:target/cucumber.json"
         },
         glue = {"ru.sogaz.steps"},
-        features = {"src/test/resources/features/"},
-        tags = "@Check_1"
+        features = {"src/test/resources/features/"}
 )
 public class CucumberTestRunner {
 }
