@@ -24,6 +24,7 @@
   3. Allure
   4. Cucumber
   5. Surefire
+  6. сборщик maven
   
 
 шаги описаны в <a href="https://github.com/Iamimprovingmyself/store/blob/main/src/test/java/ru/sogaz/steps/PetStoreSteps.java">Steps<a/>     
@@ -35,6 +36,6 @@
 по этой же причине сделал более простую реализацию передачи идентификатора из одного метода в другой(сделал не с сохранением в контекст в отдельном шаге и перадачей в последующем шаге как переменную) (utility context class)
 
 Для запуска тестов использовать команду:                        
-clean test "-Dcucumber.options=--tags @PetStore" allure:serve
+mvn clean test "-Dcucumber.options=--tags @PetStore" allure:serve
 
 слово "мое" в шапке  кликабельно и ведет в лс в телеграмме для оперативной связи)
