@@ -1,11 +1,5 @@
 package ru.sogaz;
 
-import io.restassured.builder.RequestSpecBuilder;
-import io.restassured.http.ContentType;
-import io.restassured.specification.RequestSpecification;
-import manager.TestPropManager;
-import ru.sogaz.utils.Props;
-
 public class Config {
 //    public static RequestSpecification requestSpecification;
 //    private TestPropManager properties = TestPropManager.getTestPropManager();

@@ -1,4 +1,4 @@
-package ru.sogaz.utils;
+package utils;
 
 import org.json.JSONObject;
 

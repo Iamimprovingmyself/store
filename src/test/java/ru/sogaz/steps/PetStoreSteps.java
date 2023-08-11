@@ -12,9 +12,8 @@ import manager.TestPropManager;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.junit.Assert;
-import ru.sogaz.utils.Converter;
-import ru.sogaz.utils.Props;
-import ru.sogaz.utils.TestContext;
+import utils.Converter;
+import utils.Props;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -26,29 +25,20 @@ import static io.restassured.RestAssured.given;
 public class PetStoreSteps {
 
     private JSONObject requestBody;
-    private TestContext testContext = new TestContext();
     private static TestPropManager properties = TestPropManager.getTestPropManager();
 
-    public PetStoreSteps(TestContext testContext) {
-        this.testContext = testContext;
-    }
-
-    public PetStoreSteps() {
-
-    }
     @Дано("сайт магазина доступен")
     public void checkPing() {
         Response response = given().contentType(ContentType.JSON)
                 .when().get(properties.getProperty(Props.BASE_STORE_URL))
                 .then().extract().response();
-        Assert.assertEquals("Магазин недоступен!", 200,response.getStatusCode());
+        Assert.assertEquals("Магазин недоступен!", 200, response.getStatusCode());
     }
 
     @Когда("пользователь создает заказ с параметрами:$")
     public void createNewOrder(DataTable dataTable) {
         List<Map<String, String>> orderDataList = dataTable.asMaps(String.class, String.class);
-        if (orderDataList.size() > 0) {
-            Map<String, String> orderData = orderDataList.get(0);
+        for (Map<String, String> orderData : orderDataList) {
             JSONTokener tokener;
             JSONObject template = null;
             try {
@@ -70,74 +60,94 @@ public class PetStoreSteps {
                     .then().log().all()
                     .extract().response();
             Assert.assertEquals("Не совпал код ответа", 200, response.getStatusCode());
-            testContext.setOrderId(response.getBody().path("id"));
-            Allure.addAttachment("Request","POST" +"\n" +
-                    "Host: "+ properties.getProperty(Props.BASE_URL)  +
+            Allure.addAttachment("Request", "POST" + "\n" +
+                    "Host: " + properties.getProperty(Props.BASE_URL) +
                     "/order" + "\n" + "Content-Type: " + response.getContentType() +
                     "\n" + Converter.prettyPrintJson(requestBody.toString()));
             Allure.addAttachment("Response", "HTTP/1.1  " +
                     response.getStatusCode() + "\n" +
-                    response.getContentType() + "\n"+
+                    response.getContentType() + "\n" +
                     Converter.prettyPrintJson(response.asString()));
-
         }
     }
 
 
     @И("пользователь получает информацию о заказе")
-    public void getOrderById() {
-        int id = testContext.getOrderId();
+    public void getOrderById(DataTable dataTable) {
+        List<Map<String, String>> orderDataList = dataTable.asMaps(String.class, String.class);
+        for (Map<String, String> row : orderDataList) {
+            if (!row.containsKey("id")) {
+                Assert.fail("Информация о заказе доступна только по ID, введите ID");
+            }
+            Integer expectedId = Integer.valueOf(row.get("id"));
+            Integer expectedQuantity = Integer.valueOf(row.get("quantity"));
+            Boolean expectedComplete = Boolean.valueOf(row.get("complete"));
+            Response response = given().contentType(ContentType.JSON)
+                    .when().get(properties.getProperty(Props.BASE_URL) + "/order/" + row.get("id"))
+                    .then().log().all()
+                    .extract().response();
+            if (response.getStatusCode() == 404) {
+                Assert.fail("Заказ с id=" + row.get("id") + " не найден");
+            }
+
+            Integer actualId = response.getBody().path("id");
+            Integer actualQuantity = response.getBody().path("quantity");
+            Boolean actualComplete = response.getBody().path("complete");
+            Assert.assertEquals("Неверное значение id", expectedId, actualId);
+            Assert.assertEquals("Неверное значение quantity", expectedQuantity, actualQuantity);
+            Assert.assertEquals("Неверное значение complete", expectedComplete, actualComplete);
+        }
+    }
+
+
+    @Тогда("пользователь удаляет информацию о заказах")
+    public void deleteOrdersById(DataTable dataTable) {
+        List<Map<String, String>> dataList = dataTable.asMaps(String.class, String.class);
+        for (Map<String, String> data : dataList) {
+            String id = data.get("id");
+            if (id == null || id.isEmpty()) {
+                Assert.fail("Введите ID для удаления заказа");
+            }
+            Response response = given().contentType(ContentType.JSON)
+                    .when().get(properties.getProperty(Props.BASE_URL) + "/order/" + id)
+                    .then().log().all()
+                    .extract().response();
+
+            if (response.getStatusCode() == 404) {
+                Assert.fail("Заказ с id=" + id + " не найден");
+            }
+            Response delete = given().contentType(ContentType.MULTIPART)
+                    .when().delete(properties.getProperty(Props.BASE_URL) + "/order/" + id)
+                    .then().log().all()
+                    .extract().response();
+
+            String expectedErrorMessage = String.format("Заказ с таким номером %s не найден", id);
+            if (delete.getStatusCode() != 200) { //TODO swagger всегда возвращает 200
+                Assert.fail(expectedErrorMessage);
+            }
+        }
+    }
+
+
+    @И("пользователь проверяет, что заказы не существуют:$")
+    public void checkOrdersDoNotExist(DataTable dataTable) {
+        List<Map<String, String>> orderDataList = dataTable.asMaps(String.class, String.class);
+        for (Map<String, String> orderData : orderDataList) {
+            String id = orderData.get("id");
+            if (id == null || id.isEmpty()) {
+                Assert.fail("Введите ID для проверки заказа");
+            }
+            boolean orderNotFound = checkOrderIsNotFound(id);
+            Assert.assertTrue("Заказ с id=" + id + " существует", orderNotFound);
+        }
+    }
+
+    private boolean checkOrderIsNotFound(String id) {
         Response response = given().contentType(ContentType.JSON)
                 .when().get(properties.getProperty(Props.BASE_URL) + "/order/" + id)
                 .then().log().all()
                 .extract().response();
-        if(response.getStatusCode()==404) {
-            Assert.fail("Заказ не найден");
-        }
-        Allure.addAttachment("Request","GET" +"\n"
-                + "Host: "+ properties.getProperty(Props.BASE_URL)+"/order/"+ id);
-        Allure.addAttachment("Response", "HTTP/1.1  " + response.getStatusCode() + "\n" +
-                response.getContentType() + "\n" + Converter.prettyPrintJson(response.asString()));
-        Boolean complete = Boolean.parseBoolean((String) requestBody.get("complete"));
-        Assert.assertEquals("Ошибка в сверяемых данных!", requestBody.get("petId"), response.getBody().path("petId"));
-        Assert.assertEquals("Ошибка в сверяемых данных!", Integer.valueOf((String) requestBody.get("id")), response.getBody().path("id"));
-        Assert.assertEquals("Ошибка в сверяемых данных!", complete, response.getBody().path("complete"));
-
-
-    }
-    @Тогда("пользователь удаляет информацию о заказе")
-    public void deleteOrderById() {
-        Integer id = testContext.getOrderId();
-        if(id==null) {
-            Assert.fail("Заказ не был создан!");
-        }
-        Response response = given().contentType(ContentType.MULTIPART)
-                .when().delete(properties.getProperty(Props.BASE_URL) + "/order/" + id)
-                .then().log().all()
-                .extract().response();
-        String expectedErrorMessage = String.format("Заказ с таким номером %s не найден", id);
-        if(response.getStatusCode()!=200) { //TODO swagger всегда возвращает 200
-            Assert.fail(expectedErrorMessage);
-        }
+        return response.getStatusCode() == 404;
     }
 
-    @И("проверяет что заказ не существует")
-    public void checkOrderIsNotFound() {
-        Integer id = testContext.getOrderId();
-        Response response = given().contentType(ContentType.JSON)
-                .when().get(properties.getProperty(Props.BASE_URL) + "/order/" + id)
-                .then().log().all()
-                .extract().response();
-        id=null;
-        if(response.getStatusCode()!=404) {
-            Allure.addAttachment("Response", "HTTP/1.1  "
-                    + response.getStatusCode() + "\n" +
-                    response.getContentType() +  "\n" +
-                    Converter.prettyPrintJson(response.asString()));
-            Assert.fail("Заказ существует");
-        }
-        Allure.addAttachment("Response","HTTP/1.1  "
-                + String.valueOf(response.getStatusCode()) + "\n" + "Заказ не найден");
-        Assert.assertEquals("Заказ существует",404, response.getStatusCode());
-    }
 }

@@ -1,4 +1,4 @@
-package ru.sogaz.utils;
+package utils;
 
 public class Props {
     public static final String BASE_URL = "base.url";
